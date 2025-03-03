@@ -5,7 +5,7 @@ use tokio_rustls::{
 };
 use std::sync::Arc;
 
-use crate::utils::ws_utils::{HypeStreamRequest, Ping};
+use crate::utils::ws_utils::HypeStreamRequest;
 
 
 pub struct WebsocketClient<'a> {
@@ -29,9 +29,10 @@ impl<'a> WebsocketClient<'a> {
         Ok(self.client.send(FrameView::text(json_string)).await?)
     }
 
-    pub async fn send_ping(&mut self, msg: Ping) -> anyhow::Result<(), yawc::WebSocketError>{
-        let json_string = serde_json::to_string(&msg).unwrap();
-        Ok(self.client.send(FrameView::text(json_string)).await?)
+    pub async fn send_ping(&mut self) -> anyhow::Result<()> {
+        let ping_message = r#"{"method":"ping"}"#;
+        self.client.send(FrameView::text(ping_message.to_string())).await?;
+        Ok(())
     }
 
     pub async fn close(&mut self) -> anyhow::Result<()> {

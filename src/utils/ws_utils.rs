@@ -13,16 +13,16 @@ pub struct ConnectionTimers {
     pub ping_timer: Interval,
     pub stale_timer: Interval,
     pub stats_timer: Interval,
-    pub last_alert: i64,
+    pub last_alert: Instant,
 }
 
 impl Default for ConnectionTimers {
     fn default() -> Self { 
        let start = Instant::now() + Duration::from_secs(10);
-       Self { ping_timer: interval_at(start, Duration::from_millis(10)), 
+       Self { ping_timer: interval_at(start, Duration::from_secs(56)), 
         stale_timer: interval_at(start, Duration::from_secs(10)), 
-        stats_timer: interval_at(start, Duration::from_secs(30)), 
-        last_alert: 0,
+        stats_timer: interval_at(start, Duration::from_secs(30)), // can extend to have latency stats
+        last_alert: Instant::now(),
         }
     }
 }
@@ -45,15 +45,4 @@ pub struct L2BookSubscription<'h> {
     #[serde(rename = "type")]
     pub type_field: Cow<'h, str>,
     pub coin: Cow<'h, str>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Ping {
-    pub method: &'static str,
-}
-
-impl Ping {
-    pub fn ping() -> Self {
-        Self { method: "ping "}
-    }
 }
