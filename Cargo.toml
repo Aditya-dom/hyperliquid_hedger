@@ -8,7 +8,10 @@ yawc = { version = "0.1", features = ["reqwest"] }
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
 reqwest = { version = "0.12.9", default-features = false, features = ["rustls-tls", "rustls-tls-webpki-roots"] }
 tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread", "macros"] }
+anyhow = "1.0.97"
+tokio-rustls = "0.26.2"
+webpki-roots = "0.26.8"
 
 [[bin]]
-path = "../src/bin/main.rs"
+path = "src/bin/main.rs"
 name = "if-takehome-rs"
