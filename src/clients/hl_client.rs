@@ -1,5 +1,6 @@
-use crate::{model::hl_msgs::TobMsg, utils::ws_utils::ConnectionTimers};
+use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, SubscriptionType}};
 use tokio::sync::mpsc;
+use std::borrow::Cow;
 
 use super::ws_client::WebsocketClient;
 
@@ -17,7 +18,16 @@ impl<'a> HypeClient<'a> {
         Ok(Self {ws, msg_tx, timers})
     }
 
-    pub async fn subscribe_payload(){}
+    pub async fn subscribe_payload<'h>(type_field: &'h str, coin: &'h str) -> HypeStreamRequest<'h> {
+        HypeStreamRequest {
+            method: "subscribe",
+            subscription: SubscriptionType::L2Book(L2BookSubscription {
+                type_field: Cow::Borrowed(type_field), 
+                coin: Cow::Borrowed(coin)
+            })
+        }
+    }
+
     pub async fn subscribe() {}
     pub async fn handle_msg(){}
     pub async fn consume() {}

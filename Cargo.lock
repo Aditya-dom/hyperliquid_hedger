@@ -669,6 +669,7 @@ dependencies = [
  "anyhow",
  "futures",
  "reqwest",
+ "serde",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
