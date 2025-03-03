@@ -5,6 +5,8 @@ use tokio_rustls::{
 };
 use std::sync::Arc;
 
+use crate::utils::ws_utils::{HypeStreamRequest, Ping};
+
 
 pub struct WebsocketClient<'a> {
     pub client: WebSocket,
@@ -14,7 +16,7 @@ pub struct WebsocketClient<'a> {
 impl<'a> WebsocketClient<'a> {
     pub async  fn new(url : &'a str) -> anyhow::Result<Self> {
         let client = WebSocket::connect_with_options(
-            url.parse().unwrap(),
+            url.parse()?,
             Some(WebsocketClient::tls_connector()),
             Options::default().with_compression_level(CompressionLevel::fast()),
         )
@@ -22,17 +24,18 @@ impl<'a> WebsocketClient<'a> {
         Ok(Self {url, client})
     }
 
-    pub async fn send(&mut self, msg: String) -> anyhow::Result<(), yawc::WebSocketError>{
-        Ok(self.client.send(FrameView::text(msg)).await?)
+    pub async fn send<'h>(&mut self, msg: HypeStreamRequest<'h>) -> anyhow::Result<(), yawc::WebSocketError>{
+        let json_string = serde_json::to_string(&msg).unwrap();
+        Ok(self.client.send(FrameView::text(json_string)).await?)
+    }
+
+    pub async fn send_ping(&mut self, msg: Ping) -> anyhow::Result<(), yawc::WebSocketError>{
+        let json_string = serde_json::to_string(&msg).unwrap();
+        Ok(self.client.send(FrameView::text(json_string)).await?)
     }
 
     pub async fn close(&mut self) -> anyhow::Result<()> {
         self.client.close().await?;
-        Ok(())
-    }
-
-    pub async fn ping(&mut self, data: &'static str) -> anyhow::Result<()> {
-        self.client.send(FrameView::ping(data)).await?;
         Ok(())
     }
 

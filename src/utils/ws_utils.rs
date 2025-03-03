@@ -3,6 +3,12 @@ use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use std::borrow::Cow;
 
+pub enum WSState {
+    Continue,
+    Closed,
+    Err(anyhow::Error),
+}
+
 pub struct ConnectionTimers {
     pub ping_timer: Interval,
     pub stale_timer: Interval,
@@ -41,6 +47,7 @@ pub struct L2BookSubscription<'h> {
     pub coin: Cow<'h, str>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Ping {
     pub method: &'static str,
 }

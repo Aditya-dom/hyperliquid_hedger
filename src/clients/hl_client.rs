@@ -1,4 +1,4 @@
-use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, SubscriptionType}};
+use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, Ping, SubscriptionType}};
 use tokio::sync::mpsc;
 use std::borrow::Cow;
 
@@ -18,7 +18,8 @@ impl<'a> HypeClient<'a> {
         Ok(Self {ws, msg_tx, timers})
     }
 
-    pub async fn subscribe_payload<'h>(type_field: &'h str, coin: &'h str) -> HypeStreamRequest<'h> {
+    pub fn subscribe_payload<'h>(type_field: &'h str, coin: &'h str) -> HypeStreamRequest<'h> {
+        // could use pattern matching for subscription type to make it more extendable
         HypeStreamRequest {
             method: "subscribe",
             subscription: SubscriptionType::L2Book(L2BookSubscription {
@@ -28,7 +29,17 @@ impl<'a> HypeClient<'a> {
         }
     }
 
-    pub async fn subscribe() {}
+    pub async fn subscribe(&mut self) -> anyhow::Result<()> {
+        self.ws.send(HypeClient::subscribe_payload("l2Book", "BTC-USD")).await?;
+        Ok(())
+    }
+
+    pub async fn send_ping(&mut self) -> anyhow::Result<()>{
+        let ping = Ping::ping();
+        self.ws.send_ping(ping).await?;
+        Ok(())
+    }
+
     pub async fn handle_msg(){}
     pub async fn consume() {}
     pub async fn reconnect(){}
