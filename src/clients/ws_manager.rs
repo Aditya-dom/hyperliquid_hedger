@@ -57,7 +57,7 @@ impl WsManager {
         while let Some(result) = client_tasks.join_next().await {
             match result {
                 Ok((index, client, Ok(()))) => {
-                    info!("Client {} completed - shutdown recv", index);
+                    info!("Client {} completed - shutdown received", index);
                     if index >= self.clients.len() {
                         self.clients.resize_with(index + 1, || None);
                     }

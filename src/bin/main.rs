@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         msg_rx
     ).await?;
     
-    info!("WebSocket manager initialized with {} connections", redundant_connections);
+    info!("ws-mangager initialized with {} connections", redundant_connections);
     
     let shutdown_handle = tokio::spawn(async move {
         tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
@@ -42,16 +42,16 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         result = ws_manager.run() => {
             match result {
-                Ok(_) => info!("WebSocket manager completed normally"),
-                Err(e) => error!("WebSocket manager error: {}", e),
+                Ok(_) => info!("ws-mangager completed normally"),
+                Err(e) => error!("ws_manager error: {}", e),
             }
         }
         _ = shutdown_handle => {
-            info!("Initiating graceful shutdown sequence");
+            info!("Initiating shutdown!");
             if let Err(e) = ws_manager.stop().await {
-                error!("Error during WebSocket manager shutdown: {}", e);
+                error!("Error during ws_manager shutdown: {}", e);
             } else {
-                info!("WebSocket manager stopped successfully");
+                info!("ws_manager manager stopped successfully");
             }
         }
     }
