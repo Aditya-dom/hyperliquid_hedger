@@ -1,7 +1,7 @@
 use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, SubscriptionType, WSState, WebSocketError}};
 use futures::StreamExt;
 use tokio::{sync::mpsc, time::{sleep, Instant}};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use yawc::frame::{FrameView, OpCode};
 use std::borrow::Cow;
 use std::time::Duration;
@@ -44,7 +44,7 @@ impl<'a, 's> HypeClient<'a, 's,> {
         match frame.opcode {
             OpCode::Text => {
                         if let Ok(text) = std::str::from_utf8(&frame.payload) {
-                            debug!("Raw WS message: {}", text);
+                            // debug!("Raw WS message: {}", text);
                             if text.contains(r#""channel":"pong""#) {
                                 info!("Received pong from HyperLiquid");
                                 self.timers.last_alert = Instant::now();

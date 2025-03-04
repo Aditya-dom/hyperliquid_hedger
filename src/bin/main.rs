@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting HyperLiquid orderbook client");
     
     // Channels
-    let (msg_tx, mut msg_rx) = mpsc::channel::<TobMsg>(100);
+    let (msg_tx, mut msg_rx) = mpsc::channel::<TobMsg>(1000);
     
     let client_url = "wss://api.hyperliquid.xyz/ws";
     let symbol = "HYPE"; 
