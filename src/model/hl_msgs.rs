@@ -30,11 +30,7 @@ impl OrderBookData {
     }
 
     pub fn generate_id(&self) -> String {
-        String::from("plz gib job")
+        let tob_string = format!("{:?}", self.top_of_book());
+        self.time.to_string() + &tob_string
     }
 }
-
-
-
-
-// Received unrecognized text message: {"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"l2Book","coin":"HYPE","nSigFigs":null,"mantissa":null}}}

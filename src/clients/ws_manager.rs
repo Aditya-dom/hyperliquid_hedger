@@ -116,9 +116,16 @@ async fn process_messages(mut msg_rx: Receiver<TobMsg>, tob_cache: Arc<Mutex<Tob
 async fn process_single_message(msg: &TobMsg, tob_cache: &Arc<Mutex<TobCache>>) -> anyhow::Result<()> {
     let message_id = msg.data.generate_id();
     
+    let tob = match  msg.data.top_of_book() {
+        Some(tob) => tob,
+        _ => {
+            return Ok(());
+        }
+    };
+    
     let update_result = {
-        let guard = tob_cache.lock().await;
-        guard.update(message_id.clone(), msg.clone())
+        let mut guard = tob_cache.lock().await;
+        guard.update(message_id.clone(), tob)
     };
     
     match update_result {
