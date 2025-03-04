@@ -28,6 +28,13 @@ impl OrderBookData {
 
         Some((best_bid.clone(), best_ask.clone()))
     }
-    
+
+    pub fn generate_id(&self) -> String {
+        String::from("plz gib job")
+    }
 }
 
+
+
+
+// Received unrecognized text message: {"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"l2Book","coin":"HYPE","nSigFigs":null,"mantissa":null}}}

@@ -9,19 +9,19 @@ use std::time::Duration;
 use super::ws_client::WebsocketClient;
 
 
-pub struct HypeClient<'a, 's> {
-    pub ws: WebsocketClient<'a>,
+pub struct HypeClient {
+    pub ws: WebsocketClient,
     pub msg_tx: mpsc::Sender<TobMsg>,
     pub timers: ConnectionTimers,
     pub client_no: u64,
-    pub symbol: &'s str,
+    pub symbol: String,
 }
 
-impl<'a, 's> HypeClient<'a, 's,> {
-    pub async fn new(url: &'a str, symbol: &'s str, msg_tx: mpsc::Sender<TobMsg>, client_no: u64) -> anyhow::Result<Self>{
+impl HypeClient {
+    pub async fn new(url: &str, symbol: &str, msg_tx: mpsc::Sender<TobMsg>, client_no: u64) -> anyhow::Result<Self>{
         let ws = WebsocketClient::new(url).await?;
         let timers = ConnectionTimers::default();
-        Ok(Self {ws, msg_tx, timers, client_no, symbol})
+        Ok(Self {ws, msg_tx, timers, client_no, symbol: symbol.to_string()})
     }
 
     pub fn subscribe_payload<'h>(type_field: &'h str, coin: &'h str) -> HypeStreamRequest<'h> {
@@ -36,7 +36,7 @@ impl<'a, 's> HypeClient<'a, 's,> {
     }
 
     pub async fn subscribe(&mut self) -> anyhow::Result<()> {
-        self.ws.send(HypeClient::subscribe_payload("l2Book", self.symbol)).await?;
+        self.ws.send(HypeClient::subscribe_payload("l2Book", &self.symbol)).await?;
         Ok(())
     }
 
@@ -48,6 +48,9 @@ impl<'a, 's> HypeClient<'a, 's,> {
                             if text.contains(r#""channel":"pong""#) {
                                 info!("Received pong from HyperLiquid");
                                 self.timers.last_alert = Instant::now();
+                                return Ok(WSState::Continue);
+                            }
+                            if text.contains(r#""channel":"subscriptionResponse""#) {
                                 return Ok(WSState::Continue);
                             }
                             if let Ok(tob_msg) = serde_json::from_str::<TobMsg>(text) {
@@ -113,7 +116,7 @@ impl<'a, 's> HypeClient<'a, 's,> {
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
         info!("Attempting to reconnect to HyperLiquid, client={}", self.client_no);
         let _ = self.ws.close().await;
-        self.ws = WebsocketClient::new(self.ws.url).await?;
+        self.ws = WebsocketClient::new(&self.ws.url).await?;
         self.timers = ConnectionTimers::default();
         self.subscribe().await?;
         info!("Successfully reconnected to HyperLiquid, client={}", self.client_no);

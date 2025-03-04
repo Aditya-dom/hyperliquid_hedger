@@ -8,20 +8,20 @@ use std::sync::Arc;
 use crate::utils::ws_utils::HypeStreamRequest;
 
 
-pub struct WebsocketClient<'a> {
+pub struct WebsocketClient {
     pub client: WebSocket,
-    pub url: &'a str
+    pub url: String,
 }
 
-impl<'a> WebsocketClient<'a> {
-    pub async  fn new(url : &'a str) -> anyhow::Result<Self> {
+impl WebsocketClient {
+    pub async  fn new(url : &str) -> anyhow::Result<Self> {
         let client = WebSocket::connect_with_options(
             url.parse()?,
             Some(WebsocketClient::tls_connector()),
             Options::default().with_compression_level(CompressionLevel::fast()),
         )
         .await?;
-        Ok(Self {url, client})
+        Ok(Self {url: url.to_string(), client})
     }
 
     pub async fn send<'h>(&mut self, msg: HypeStreamRequest<'h>) -> anyhow::Result<(), yawc::WebSocketError>{
