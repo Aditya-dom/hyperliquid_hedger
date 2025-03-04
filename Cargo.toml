@@ -7,7 +7,7 @@ edition = "2021"
 yawc = { version = "0.1", features = ["reqwest"] }
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
 reqwest = { version = "0.12.9", default-features = false, features = ["rustls-tls", "rustls-tls-webpki-roots"] }
-tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.41.1", features = ["full"] }
 anyhow = "1.0.97"
 tokio-rustls = "0.26.2"
 webpki-roots = "0.26.8"
@@ -15,6 +15,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.140"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+rustls = { version = "0.23.23", features = ["ring"] }
 
 [[bin]]
 path = "src/bin/main.rs"

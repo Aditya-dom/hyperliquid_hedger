@@ -1,23 +1,27 @@
-use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, SubscriptionType, WSState}};
-use tokio::{sync::mpsc, time::Instant};
-use tracing::{error, info};
+use crate::{model::hl_msgs::TobMsg, utils::ws_utils::{ConnectionTimers, HypeStreamRequest, L2BookSubscription, SubscriptionType, WSState, WebSocketError}};
+use futures::StreamExt;
+use tokio::{sync::mpsc, time::{sleep, Instant}};
+use tracing::{debug, error, info, warn};
+use yawc::frame::{FrameView, OpCode};
 use std::borrow::Cow;
+use std::time::Duration;
 
 use super::ws_client::WebsocketClient;
 
 
-pub struct HypeClient<'a> {
+pub struct HypeClient<'a, 's> {
     pub ws: WebsocketClient<'a>,
     pub msg_tx: mpsc::Sender<TobMsg>,
     pub timers: ConnectionTimers,
-    pub client_no: u64
+    pub client_no: u64,
+    pub symbol: &'s str,
 }
 
-impl<'a> HypeClient<'a> {
-    pub async fn new(url: &'a str, msg_tx: mpsc::Sender<TobMsg>, client_no: u64) -> anyhow::Result<Self>{
+impl<'a, 's> HypeClient<'a, 's,> {
+    pub async fn new(url: &'a str, symbol: &'s str, msg_tx: mpsc::Sender<TobMsg>, client_no: u64) -> anyhow::Result<Self>{
         let ws = WebsocketClient::new(url).await?;
         let timers = ConnectionTimers::default();
-        Ok(Self {ws, msg_tx, timers, client_no})
+        Ok(Self {ws, msg_tx, timers, client_no, symbol})
     }
 
     pub fn subscribe_payload<'h>(type_field: &'h str, coin: &'h str) -> HypeStreamRequest<'h> {
@@ -32,86 +36,74 @@ impl<'a> HypeClient<'a> {
     }
 
     pub async fn subscribe(&mut self) -> anyhow::Result<()> {
-        self.ws.send(HypeClient::subscribe_payload("l2Book", "BTC-USD")).await?;
+        self.ws.send(HypeClient::subscribe_payload("l2Book", self.symbol)).await?;
         Ok(())
     }
 
-    pub async fn handle_msg(&mut self, frame: yawc::frame::FrameView) -> anyhow::Result<WSState> {
-        match frame.opcode() {
-            yawc::frame::OpCode::Text => {
-                if let Ok(text) = std::str::from_utf8(frame.payload()) {
-                    if text.contains(r#""channel":"pong""#) {
-                        println!("Received pong from HyperLiquid");
-                        self.timers.last_alert = Instant::now();
-                        return Ok(WSState::Continue);
-                    }
-                    
-                    if let Ok(tob_msg) = serde_json::from_str::<TobMsg>(text) {
-                        if let Err(e) = self.msg_tx.send(tob_msg).await {
-                            eprintln!("Failed to send message to manager: {}", e);
+    pub async fn handle_msg(&mut self, frame: FrameView) -> anyhow::Result<WSState> {
+        match frame.opcode {
+            OpCode::Text => {
+                        if let Ok(text) = std::str::from_utf8(&frame.payload) {
+                            debug!("Raw WS message: {}", text);
+                            if text.contains(r#""channel":"pong""#) {
+                                info!("Received pong from HyperLiquid");
+                                self.timers.last_alert = Instant::now();
+                                return Ok(WSState::Continue);
+                            }
+                            if let Ok(tob_msg) = serde_json::from_str::<TobMsg>(text) {
+                                if let Err(e) = self.msg_tx.send(tob_msg).await {
+                                    warn!("Failed to send message to manager: {}", e);
+                                }
+                                return Ok(WSState::Continue);
+                            }
+                            warn!("Received unrecognized text message: {}", text);
+                            return Ok(WSState::Continue);
                         }
+                        warn!("Received invalid UTF-8 in text frame");
                         return Ok(WSState::Continue);
                     }
-                    
-                    println!("Received unrecognized text message: {}", text);
-                    return Ok(WSState::Continue);
-                }
-                eprintln!("Received invalid UTF-8 in text frame");
-                return Ok(WSState::Continue);
-            }
-
-            yawc::frame::OpCode::Binary => {
-                println!("Received binary data of {} bytes", frame.payload().len());
-                return Ok(WSState::Continue);
-            }
-            yawc::frame::OpCode::Close => {
-                println!("Received close frame from server");
-                return Ok(WSState::Closed);
-            }
-            _ => {
-                println!("Received unsupported frame type");
-                return Ok(WSState::Continue);
-            }
+           OpCode::Binary | OpCode::Continuation | OpCode::Ping | OpCode::Pong  => {
+                        return Ok(WSState::Continue);
+                    }
+            OpCode::Close => {
+                        warn!("Received close frame from server, client={}", self.client_no);
+                        return Ok(WSState::Closed);
+                    }
         }
     }
-    pub async fn consume(&mut self) -> anyhow::Result<()> {
+
+    pub async fn consume(&mut self) -> anyhow::Result<(), WebSocketError> {
         loop {
             tokio::select! {
-                // Process incoming WebSocket messages
                 frame = self.ws.client.next() => {
                     match frame {
-                        Some(Ok(frame)) => {
+                        Some(frame) => {
                             match self.handle_msg(frame).await? {
                                 WSState::Continue => continue,
                                 WSState::Closed => return Ok(()),
-                                WSState::Err(e) => return Err(e),
+                                WSState::Err(e) => return Err(WebSocketError::Error(e)),
                             }
                         },
-                        Some(Err(e)) => {
-                            eprintln!("WebSocket error: {}", e);
-                            return Err(anyhow::anyhow!("WebSocket error: {}", e));
-                        },
-                        None => {
-                            println!("WebSocket connection closed by server");
-                            return Ok(());
+                        _ => {
+                            continue;
                         }
                     }
                 },
+                _ = tokio::signal::ctrl_c() => {
+                    return Err(WebSocketError::Terminated);
+                }
                 
-                // Send heartbeat ping at regular intervals
                 _ = self.timers.ping_timer.tick() => {
-                    if let Err(e) = self.send_ping().await {
-                        eprintln!("Failed to send ping: {}", e);
-                        return Err(e);
+                    if let Err(e) = self.ws.send_ping().await {
+                        error!("Failed to send ping: {}", e);
+                        return Err(WebSocketError::Error(e));
                     }
                 },
-                
-                // Check for connection health
-                _ = self.timers.no_message_timeout.tick() => {
-                    // If we haven't received a pong in too long, reconnect
-                    let elapsed = self.timers.last_pong.elapsed();
-                    if elapsed > self.timers.max_idle_time {
-                        return Err(anyhow::anyhow!("Connection timed out - no pong received in {:?}", elapsed));
+
+                _ = self.timers.stale_timer.tick() => {
+                    let elapsed = self.timers.last_alert.elapsed();
+                    if elapsed > Duration::from_secs(70) {
+                        return Err(WebSocketError::Timeout);
                     }
                 }
             }
@@ -132,26 +124,17 @@ impl<'a> HypeClient<'a> {
         info!("Starting HyperLiquid client: {}", self.client_no);
         self.subscribe().await?;
         info!("Client: {}, connected to HyperLiquid ", self.client_no);
-        
+
         loop {
-            if let Err(e) = self.consume().await {
-                error!("Connection error: {}", e);
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                
-                match self.reconnect().await {
-                    Ok(_) => println!("Reconnection successful"),
-                    Err(e) => {
-                        error!("Failed to reconnect: {}", e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                    }
-                }
-            } else {
-                info!("Connection closed gracefully, reconnecting...");
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                if let Err(e) = self.reconnect().await {
-                    error!("Failed to reconnect: {}", e);
-                }
+            if matches!(
+                self.consume().await,
+                Err(WebSocketError::Terminated)
+            ) {
+                break;
             }
+            sleep(Duration::from_millis(50)).await;
+            self.reconnect().await?;
         }
+        Ok(())
     }
 }

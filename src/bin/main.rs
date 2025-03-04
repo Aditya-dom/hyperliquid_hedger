@@ -1,10 +1,59 @@
+use if_takehome_rs::{clients::hl_client::HypeClient, model::hl_msgs::TobMsg};
+use tokio::sync::mpsc;
+use tracing::{info, error};
+
 #[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
+async fn main() -> anyhow::Result<()> {
+    rustls::crypto::ring::default_provider().install_default().expect("Failed to install rustls crypto provider");
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
+    info!("Starting HyperLiquid orderbook client");
     
+    // Channels
+    let (msg_tx, mut msg_rx) = mpsc::channel::<TobMsg>(100);
+    
+    let client_url = "wss://api.hyperliquid.xyz/ws";
+    let symbol = "HYPE"; 
+    let client_no = 1; 
+
+    let client_handle = tokio::spawn(async move {
+        match HypeClient::new(client_url, symbol, msg_tx, client_no).await {
+            Ok(mut client) => {
+                if let Err(e) = client.run().await {
+                    error!("Client error: {}", e);
+                }
+            },
+            Err(e) => {
+                error!("Failed to create client: {}", e);
+            }
+        }
+    });
+    
+    let processor_handle = tokio::spawn(async move {
+        info!("Message processor started");
+        while let Some(msg) = msg_rx.recv().await {
+            info!("Received top-of-book message: {:?}", msg);
+        }
+    });
+    
+    tokio::select! {
+        _ = client_handle => {
+            info!("Client task completed unexpectedly");
+        }
+        _ = processor_handle => {
+            info!("Processor task completed unexpectedly");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            info!("Received shutdown signal, stopping client");
+        }
+    }
+    
+    info!("Application shutting down");
+    Ok(())
 }
-
-
 
 
 // 1. Connect to Hyperliquid and pull (only) the top of book from the orderbook feed.

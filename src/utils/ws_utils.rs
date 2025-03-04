@@ -9,6 +9,32 @@ pub enum WSState {
     Err(anyhow::Error),
 }
 
+use std::fmt;
+
+pub enum WebSocketError {
+    Terminated,
+    Timeout,
+    Error(anyhow::Error),
+    Unknown, 
+}
+
+impl From<anyhow::Error> for WebSocketError {
+    fn from(err: anyhow::Error) -> Self {
+        WebSocketError::Error(err)
+    }
+}
+
+impl fmt::Display for WebSocketError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WebSocketError::Terminated => write!(f, "WebSocket connection terminated"),
+            WebSocketError::Timeout => write!(f, "WebSocket connection timed out"),
+            WebSocketError::Error(e) => write!(f, "WebSocket error: {}", e),
+            WebSocketError::Unknown => write!(f, "Unknown WebSocket error"),
+        }
+    }
+}
+
 pub struct ConnectionTimers {
     pub ping_timer: Interval,
     pub stale_timer: Interval,
