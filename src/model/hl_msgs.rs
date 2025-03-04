@@ -25,7 +25,9 @@ impl OrderBookData {
     pub fn top_of_book(&self) -> Option<(PriceLevel, PriceLevel)> {
         let best_bid = self.levels.get(0)?.get(0)?;
         let best_ask = self.levels.get(1)?.get(0)?;
+
         Some((best_bid.clone(), best_ask.clone()))
     }
     
 }
+
