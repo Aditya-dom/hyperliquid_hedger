@@ -1,5 +1,5 @@
 HyperLiquid Connector w/ Redundant WS connections
 
 ```bash
-cargo run --bin if-takehome-rs
+cargo run --bin hl-conn-rs
 ```
