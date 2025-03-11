@@ -19,4 +19,4 @@ rustls = { version = "0.23.23", features = ["ring"] }
 
 [[bin]]
 path = "src/bin/main.rs"
-name = "if-takehome-rs"
+name = "hl-conn-rs"
