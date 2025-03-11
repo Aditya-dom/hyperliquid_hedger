@@ -1,7 +1,7 @@
 # HyperLiquid Connector
 
-<ins> Basic Hyperliquid DEX connectivity, fetching top of book market data with multiple racing ws streams. </ins>
-```
+Basic Hyperliquid DEX connectivity, fetching top of book market data with multiple racing ws streams.
+
 
 Usage:
 ```bash
