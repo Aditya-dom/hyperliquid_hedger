@@ -4,7 +4,7 @@ use crate::trading::types::{NewOrder, OrderType, Side};
 use anyhow::Result;
 use crossbeam_channel::{Sender, Receiver, unbounded};
 use dashmap::DashMap;
-use parking_lot::RwLock;
+use tokio::sync::RwLock;
 use rust_decimal::Decimal;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -254,7 +254,7 @@ impl TradingApi {
 
     async fn enforce_rate_limit(&self) {
         {
-            let mut rate_limiter = self.rate_limiter.write();
+            let mut rate_limiter = self.rate_limiter.write().await;
             let now = std::time::Instant::now();
             
             // Reset window if more than 1 second has passed
@@ -270,7 +270,7 @@ impl TradingApi {
                     drop(rate_limiter); // Release lock before sleeping
                     sleep(sleep_duration).await;
                     // Re-acquire lock after sleeping
-                    let mut rate_limiter = self.rate_limiter.write();
+                    let mut rate_limiter = self.rate_limiter.write().await;
                     rate_limiter.request_count += 1;
                     rate_limiter.last_request = std::time::Instant::now();
                 } else {
@@ -299,7 +299,7 @@ impl TradingApi {
                 
                 let now = std::time::Instant::now();
                 let retry_requests = {
-                    let mut queue = retry_queue.write();
+                    let mut queue = retry_queue.write().await;
                     let mut to_retry = Vec::new();
                     let mut remaining = Vec::new();
                     
@@ -344,7 +344,7 @@ impl TradingApi {
                                 order: updated_order,
                                 retry_after,
                             };
-                            retry_queue.write().push(new_retry_request);
+                            retry_queue.write().await.push(new_retry_request);
                         }
                     }
                 }

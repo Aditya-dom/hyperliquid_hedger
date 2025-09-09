@@ -36,7 +36,7 @@ impl Default for MarketMakingConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MarketMakingStrategy {
     pub config: MarketMakingConfig,
     pub active_orders: HashMap<Uuid, Order>,
@@ -143,6 +143,39 @@ impl MarketMakingStrategy {
         }
         
         actions
+    }
+
+    pub fn generate_actions_sync(&self, order_book: &OrderBook) -> Vec<OrderAction> {
+        if !self.enabled {
+            return vec![];
+        }
+
+        let Some(fair_price) = self.calculate_fair_price(order_book) else {
+            return vec![];
+        };
+
+        // Check if we should refresh orders
+        if !self.should_refresh_orders(fair_price) {
+            return vec![];
+        }
+
+        let mut actions = Vec::new();
+
+        // Cancel existing orders first
+        if !self.active_orders.is_empty() {
+            actions.extend(self.cancel_all_orders());
+        }
+
+        // Calculate new spread and generate orders
+        let spread = self.calculate_spread(order_book, fair_price);
+        actions.extend(self.generate_orders(fair_price, spread));
+
+        actions
+    }
+
+    pub fn update_last_price(&mut self, price: Decimal) {
+        self.last_price = Some(price);
+        self.last_order_time = Utc::now();
     }
 
     fn cancel_all_orders(&self) -> Vec<OrderAction> {

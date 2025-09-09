@@ -9,7 +9,7 @@ use hyper_liquid_connector::{
 use anyhow::Result;
 use crossbeam_channel::{Receiver, unbounded};
 use dashmap::DashMap;
-use parking_lot::RwLock;
+use tokio::sync::RwLock;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use std::time::Duration;
@@ -127,7 +127,7 @@ impl TradingBot {
         info!("Starting trading bot");
 
         {
-            let mut is_running = self.is_running.write();
+            let mut is_running = self.is_running.write().await;
             *is_running = true;
         }
 
@@ -164,7 +164,7 @@ impl TradingBot {
         info!("Stopping trading bot");
 
         {
-            let mut is_running = self.is_running.write();
+            let mut is_running = self.is_running.write().await;
             *is_running = false;
         }
 
@@ -188,71 +188,72 @@ impl TradingBot {
     async fn start_event_processing(&self) {
         let is_running = Arc::clone(&self.is_running);
         let order_books = Arc::clone(&self.order_books);
-        let market_making_strategy = Arc::new(RwLock::new(self.market_making_strategy));
+        let market_making_strategy = Arc::new(RwLock::new(self.market_making_strategy.clone()));
         let trading_api = self.trading_api.clone();
-        let _order_manager = self.order_manager.clone();
-        let _position_manager = self.position_manager.clone();
         let risk_manager = self.risk_manager.clone();
         let bot_events_tx = self.bot_events_tx.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
 
-            while *is_running.read() {
+            while *is_running.read().await {
                 interval.tick().await;
 
                 // Process market data and generate orders
                 for entry in order_books.iter() {
                     let (symbol, order_book) = (entry.key(), entry.value());
                     
-                    {
-                        let mut strategy = market_making_strategy.write();
-                        let actions = strategy.on_market_data(order_book).await;
-                        
-                        for action in actions {
-                            match action.action_type {
-                                hyper_liquid_connector::trading::types::OrderActionType::Place => {
-                                    if let Some(new_order) = action.order {
-                                        // Check risk limits before placing order
-                                        match risk_manager.check_order_risk(&new_order) {
-                                            Ok(_) => {
-                                                match trading_api.place_order(new_order.clone()).await {
-                                                    Ok(order_id) => {
-                                                        info!("Order placed: {} for {}", order_id, symbol);
-                                                        let _ = bot_events_tx.send(BotEvent::OrderPlaced {
-                                                            order_id,
-                                                            symbol: symbol.clone(),
-                                                        });
-                                                    }
-                                                    Err(e) => {
-                                                        error!("Failed to place order: {}", e);
-                                                        let _ = bot_events_tx.send(BotEvent::Error {
-                                                            error: format!("Failed to place order: {}", e),
-                                                        });
-                                                    }
+                    // Clone order book to avoid holding references across await
+                    let order_book_clone = order_book.clone();
+                    
+                    // Extract actions without holding lock across await
+                    let actions = {
+                        let strategy = market_making_strategy.read().await;
+                        // Generate actions synchronously to avoid Send issues
+                        strategy.generate_actions_sync(&order_book_clone)
+                    };
+                    
+                    for action in actions {
+                        match action.action_type {
+                            hyper_liquid_connector::trading::types::OrderActionType::Place => {
+                                if let Some(new_order) = action.order {
+                                    match risk_manager.check_order_risk(&new_order) {
+                                        Ok(_) => {
+                                            match trading_api.place_order(new_order.clone()).await {
+                                                Ok(order_id) => {
+                                                    info!("Order placed: {} for {}", order_id, symbol);
+                                                    let _ = bot_events_tx.send(BotEvent::OrderPlaced {
+                                                        order_id,
+                                                        symbol: symbol.clone(),
+                                                    });
+                                                }
+                                                Err(e) => {
+                                                    error!("Failed to place order: {}", e);
+                                                    let _ = bot_events_tx.send(BotEvent::Error {
+                                                        error: format!("Failed to place order: {}", e),
+                                                    });
                                                 }
                                             }
-                                            Err(e) => {
-                                                warn!("Order rejected by risk manager: {}", e);
-                                                let _ = bot_events_tx.send(BotEvent::RiskAlert {
-                                                    message: format!("Order rejected: {}", e),
-                                                    severity: "high".to_string(),
-                                                });
-                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!("Order rejected by risk manager: {}", e);
+                                            let _ = bot_events_tx.send(BotEvent::RiskAlert {
+                                                message: format!("Order rejected: {}", e),
+                                                severity: "high".to_string(),
+                                            });
                                         }
                                     }
                                 }
-                                hyper_liquid_connector::trading::types::OrderActionType::Cancel => {
-                                    if let Some(order_id) = action.order_id {
-                                        if let Err(e) = trading_api.cancel_order(order_id).await {
-                                            error!("Failed to cancel order {}: {}", order_id, e);
-                                        }
+                            }
+                            hyper_liquid_connector::trading::types::OrderActionType::Cancel => {
+                                if let Some(order_id) = action.order_id {
+                                    if let Err(e) = trading_api.cancel_order(order_id).await {
+                                        error!("Failed to cancel order {}: {}", order_id, e);
                                     }
                                 }
-                                hyper_liquid_connector::trading::types::OrderActionType::Modify => {
-                                    // Handle order modification
-                                    warn!("Order modification not implemented yet");
-                                }
+                            }
+                            hyper_liquid_connector::trading::types::OrderActionType::Modify => {
+                                warn!("Order modification not implemented yet");
                             }
                         }
                     }
@@ -277,8 +278,8 @@ impl TradingBot {
         self.risk_manager.get_risk_score(symbol)
     }
 
-    pub fn is_running(&self) -> bool {
-        *self.is_running.read()
+    pub async fn is_running(&self) -> bool {
+        *self.is_running.read().await
     }
 
     pub async fn enable_strategy(&mut self, name: &str) -> Result<()> {

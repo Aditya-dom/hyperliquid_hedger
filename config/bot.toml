@@ -1,0 +1,58 @@
+# HyperLiquid Trading Bot Configuration
+bot_id = "hyperliquid-bot-001"
+version = "1.0.0"
+environment = "Development"
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+
+[api_config]
+base_url = "https://api.hyperliquid.xyz"
+ws_url = "wss://api.hyperliquid.xyz/ws"
+timeout_ms = 5000
+max_retries = 3
+retry_delay_ms = 1000
+
+[risk_config]
+global_risk_limits = { max_position_size = 1000.0, max_daily_loss = 500.0, max_order_size = 100.0, max_orders_per_side = 10 }
+circuit_breakers = []
+
+[risk_config.position_limits]
+HYPE = { max_long = 1000.0, max_short = 1000.0, max_net = 1000.0 }
+
+[risk_config.exposure_limits]
+HYPE = { max_notional = 2000.0, max_leverage = 2.0 }
+
+[risk_config.volatility_limits]
+HYPE = { max_spread_bps = 100, max_price_change_bps = 500 }
+
+[ui_config]
+window_width = 1200.0
+window_height = 800.0
+theme = "dark"
+refresh_rate_ms = 100
+show_debug_info = false
+
+panels = {}
+
+[logging_config]
+level = "info"
+file_path = "logs/bot.log"
+max_file_size_mb = 100
+max_files = 10
+enable_console = true
+enable_file = true
+
+[performance_config]
+max_memory_mb = 1024
+gc_interval_seconds = 300
+metrics_interval_seconds = 60
+enable_profiling = false
+thread_pool_size = 4
+
+[strategies.market_making_HYPE]
+name = "market_making_HYPE"
+enabled = true
+symbol = "HYPE"
+strategy_type = "MarketMaking"
+config = { base_config = { name = "market_making_HYPE", enabled = true, symbol = "HYPE", risk_limits = { max_position_size = 100.0, max_daily_loss = 1000.0, max_order_size = 10.0, max_orders_per_side = 5 } }, spread_bps = 20, order_size = 1.0, max_orders_per_side = 3, inventory_target = 0.0, inventory_skew_factor = 0.1, min_edge_bps = 5, order_refresh_interval_ms = 1000 }
+risk_limits = { max_position_size = 100.0, max_daily_loss = 1000.0, max_order_size = 10.0, max_orders_per_side = 5 }
