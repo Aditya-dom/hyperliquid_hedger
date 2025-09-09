@@ -1,11 +1,11 @@
 # HyperLiquid Connector
 
-Basic Hyperliquid DEX connectivity, fetching top of book market data with multiple racing ws streams.
+Hyperliquid DEX Bot in rust, fetching top of book market data with multiple racing ws streams.
 
 
 Usage:
 ```bash
-git clone https://github.com/Unays7/HyperLiquid-Connector.git
-cd HyperLiquid-Connector
+git clone https://github.com/Aditya-dom/hyperliquid_hedger.git
+cd hyperliquid_hedger
 cargo run --bin hl-conn-rs
 ```
