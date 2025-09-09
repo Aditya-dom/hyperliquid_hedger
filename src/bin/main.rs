@@ -1,4 +1,4 @@
-use if_takehome_rs::{
+use hyper_liquid_connector::{
     clients::ws_manager::WsManager, 
     model::hl_msgs::TobMsg
 };

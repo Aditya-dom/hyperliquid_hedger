@@ -1,4 +1,10 @@
+pub mod api;
 pub mod clients;
+pub mod config;
 pub mod datastructures;
+pub mod events;
 pub mod model;
+pub mod strategies;
+pub mod trading;
+pub mod ui;
 pub mod utils;

@@ -1,19 +1,19 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::{sync::mpsc::{Receiver, Sender}, task::JoinSet};
+use tokio::task::JoinSet;
+use parking_lot::Mutex;
 use tracing::{error, info, warn};
 use crate::{datastructures::tob_cache::{TobCache, TobCacheResult}, model::hl_msgs::TobMsg};
 use super::hl_client::HypeClient;
 
 pub struct WsManager {
     pub clients: Vec<Option<HypeClient>>,  
-    pub msg_rx: Option<Receiver<TobMsg>>,  
-    pub tob_cache: Arc<Mutex<TobCache>>,  
+    pub msg_rx: Option<tokio::sync::mpsc::Receiver<TobMsg>>,  
+    pub tob_cache: Arc<parking_lot::Mutex<TobCache>>,  
 }
 
 impl WsManager {
-    pub async fn new(no_streams: u64, url: &str, symbol: &str, msg_tx: Sender<TobMsg>, 
-                    msg_rx: Receiver<TobMsg>) -> anyhow::Result<Self> {
+    pub async fn new(no_streams: u64, url: &str, symbol: &str, msg_tx: tokio::sync::mpsc::Sender<TobMsg>, 
+                    msg_rx: tokio::sync::mpsc::Receiver<TobMsg>) -> anyhow::Result<Self> {
         
         let mut clients = Vec::with_capacity(no_streams as usize);
         for client_no in 0..no_streams {
@@ -21,7 +21,7 @@ impl WsManager {
             clients.push(Some(client));
         }
 
-        let tob_cache = Arc::new(Mutex::new(TobCache::new()));
+        let tob_cache = Arc::new(parking_lot::Mutex::new(TobCache::new()));
 
         Ok(Self {
             clients,
@@ -92,7 +92,7 @@ impl WsManager {
     }
 }
 
-async fn process_messages(mut msg_rx: Receiver<TobMsg>, tob_cache: Arc<Mutex<TobCache>>) {
+async fn process_messages(mut msg_rx: tokio::sync::mpsc::Receiver<TobMsg>, tob_cache: Arc<Mutex<TobCache>>) {
     info!("Message processor started");
     
     loop {
@@ -124,7 +124,7 @@ async fn process_single_message(msg: &TobMsg, tob_cache: &Arc<Mutex<TobCache>>) 
     };
     
     let update_result = {
-        let mut guard = tob_cache.lock().await;
+        let mut guard = tob_cache.lock();
         guard.update(message_id.clone(), tob)
     };
     

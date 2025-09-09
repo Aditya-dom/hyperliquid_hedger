@@ -1,19 +1,19 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TobMsg {
     pub channel: String,
     pub data: OrderBookData,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookData {
     pub coin: String,
     pub time: u64,
     pub levels: Vec<Vec<PriceLevel>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceLevel {
     pub px: String, 
     pub sz: String, 
